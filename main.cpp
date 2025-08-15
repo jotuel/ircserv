@@ -59,4 +59,6 @@ int main(int argc, char *argv[]) {
 
 	irc->addClient(sock);
 	irc->poll();
+	close(sock);
+	delete irc;
 }
