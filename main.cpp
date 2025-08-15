@@ -1,13 +1,41 @@
 #include "Server.hpp"
 #include <iostream>
+#include <stdexcept>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <csignal>
 
+Server *irc;
+
+void clientWrite(int fd) {
+	(void)fd;
+}
+
+void clientDisconnect(int fd) {
+	std::cout << "Client with socket" << fd << " disconnected" << std::endl;
+}
+
+void acceptClient(int socket) {
+	int fd;
+	struct sockaddr_in remote{};
+	socklen_t remoteLen{};
+
+	fd = accept(socket, (struct sockaddr*) &remote, &remoteLen);
+
+	if (fd > 0) {
+		std::cout << "A client connected with" << fd << "number connected" << std::endl;
+
+		irc->addClient(fd);
+		irc->registerHandler(fd, EPOLLIN, clientWrite);
+		irc->registerHandler(fd, EPOLLRDHUP | EPOLLHUP, clientDisconnect);
+	} else {
+		throw std::runtime_error("Failed creating a new TCP connection to client");
+	}
+}
+
 int main(int argc, char *argv[]) {
-	Server *irc;
 	struct sockaddr_in sa_bindy{};
 	sa_bindy.sin_family = AF_INET;
 
@@ -58,7 +86,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	irc->addClient(sock);
-	irc->poll();
+	irc->registerHandler(sock, EPOLLIN | EPOLLOUT, [](int socket) { acceptClient(socket); });
+	while (true)
+		irc->poll();
 	close(sock);
 	delete irc;
 }

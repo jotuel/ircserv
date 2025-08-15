@@ -24,6 +24,7 @@ class Server {
 		virtual ~Server();
 		void addClient(const int fd);
 		void removeClient(const int fd);
+		void registerHandler(const int fd, uint32_t eventType, std::function<void(int)> handler);
 		void poll(int tout = -1);
 		const std::unordered_map<int, class Client>& getClients() const;
 		int getServerFd() const;
