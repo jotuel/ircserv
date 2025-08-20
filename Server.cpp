@@ -1,4 +1,5 @@
 #include "Server.hpp"
+#include <cstdint>
 #include <stdexcept>
 
 
@@ -15,13 +16,42 @@ int Server::getServerFd() const {
 	return _fd;
 }
 
-void Server::addClient(const int fd) {
-	_clients.try_emplace(fd, fd);
+void Server::addClient(const Client client) {
+	_clients.try_emplace(client._fd, client);
 }
 
-void Server::removeClient(const int fd) {
+void Server::removeClient(const Client client) {
 	if(!_clients.empty())
-		_clients.erase(fd);
+		_clients.erase(client._fd);
+}
+
+void Server::_reloadHandler(Client &client) const {
+	uint32_t event = 0;
+	struct epoll_event ev{};
+	ev.data.fd = client._fd;
+	bool firstEvent = true;
+	for (uint32_t evt: eventTypes) {
+		if (client.handler(evt)) {
+			event = evt;
+			firstEvent = false;
+		} else {
+			event |= evt;
+		}
+
+		if (firstEvent)
+			event = EPOLLET;
+		else
+			event |= EPOLLET;
+
+		ev.events = event;
+
+		if (client.isInitialized) {
+			epoll_ctl(this->_fd, EPOLL_CTL_MOD, client._fd, &ev);
+		} else {
+			epoll_ctl(this->_fd, EPOLL_CTL_ADD, client._fd, &ev);
+			client.isInitialized = true;
+		}
+	}
 }
 
 void Server::poll(int tout) {
@@ -33,11 +63,12 @@ void Server::poll(int tout) {
 		for (uint32_t eventType : eventTypes) {
 			if (_clients.count(fd) == 0)
 				return ;
-			_clients.at(fd).getHandler(eventType);
+			if (_clients.at(fd).handler(eventType))
+			_clients.at(fd).getHandler(eventType)(fd);
 		}
 
 	if (events & (EPOLLRDHUP & EPOLLHUP))
-		removeClient(fd);
+		removeClient(_clients.at(fd));
 	}
 }
 
@@ -45,9 +76,6 @@ void Server::registerHandler(const int fd, uint32_t eventType, std::function<voi
 	if (_clients.count(fd) == 0)
 		throw std::runtime_error("Server::registerHandler: Error - no such file descriptor");
 
-	struct epoll_event ev{};
-	ev.events = eventType;
-	ev.data.fd = fd;
 
 	Client &cli = _clients.at(fd);
 
@@ -57,8 +85,5 @@ void Server::registerHandler(const int fd, uint32_t eventType, std::function<voi
 		}
 	}
 
-	if (cli.isInitialized)
-		epoll_ctl(getServerFd(), EPOLL_CTL_MOD, fd, &ev);
-	else
-		epoll_ctl(this->_fd, EPOLL_CTL_ADD, fd, &ev);
+	_reloadHandler(cli);
 }

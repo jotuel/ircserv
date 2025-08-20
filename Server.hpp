@@ -19,12 +19,14 @@ class Server {
 		const int _fd;
 		const int _max_events = 10;
 		std::string _password;
+		void _reloadHandler(Client &client) const;
 	public:
 		Server(std::string passwd = "");
 		virtual ~Server();
-		void addClient(const int fd);
-		void removeClient(const int fd);
+		void addClient(const Client client);
+		void removeClient(const Client client);
 		void registerHandler(const int fd, uint32_t eventType, std::function<void(int)> handler);
+
 		void poll(int tout = -1);
 		const std::unordered_map<int, class Client>& getClients() const;
 		int getServerFd() const;

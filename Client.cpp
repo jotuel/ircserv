@@ -1,9 +1,11 @@
 #include "Client.hpp"
 #include <stdexcept>
 #include <sys/epoll.h>
+#include <fcntl.h>
 
 Client::Client(int fd) : _fd(fd) {
-
+	if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK))
+		throw std::runtime_error("Client::Client: Fcntl failed");
 }
 
 void Client::setHandler(uint32_t eventType, std::function<void(int)> handler) {
@@ -28,6 +30,25 @@ void Client::setHandler(uint32_t eventType, std::function<void(int)> handler) {
 			break;
 		default:
 			break;
+	}
+}
+
+bool Client::handler(uint32_t eventType) const {
+	switch (eventType) {
+		case EPOLLIN:
+			return IN != nullptr;
+		case EPOLLOUT:
+			return OUT != nullptr;
+		case EPOLLRDHUP:
+			return RDHUP != nullptr;
+		case EPOLLPRI:
+			return PRI != nullptr;
+		case EPOLLERR:
+			return ERR != nullptr;
+		case EPOLLHUP:
+			return HUP != nullptr;
+		default:
+			return false;
 	}
 }
 

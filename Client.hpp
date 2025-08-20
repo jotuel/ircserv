@@ -15,6 +15,7 @@ class Client {
 		explicit Client(int fd);
 		const int _fd;
 		bool isInitialized = false;
+		bool handler(uint32_t eventType) const;
 		void setHandler(uint32_t eventType, std::function<void(int)> handler);
 		std::function<void(int)>& getHandler(uint32_t eventType);
 };

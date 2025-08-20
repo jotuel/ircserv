@@ -10,7 +10,18 @@
 Server *irc;
 
 void clientWrite(int fd) {
-	(void)fd;
+	int messageLen = 0;
+	std::string msg;
+	std::vector<char> buf(BUFSIZ);
+
+	messageLen = recv(fd, &buf[0], buf.size(), 0);
+	if (messageLen == -1)
+		throw std::runtime_error("Failure receiving message");
+	else
+		msg.append(buf.cbegin(), buf.cend() + messageLen);
+
+	std::cout << msg << std::endl;
+	send(fd, "Message received", 17, 0);
 }
 
 void clientDisconnect(int fd) {
@@ -22,12 +33,14 @@ void acceptClient(int socket) {
 	struct sockaddr_in remote{};
 	socklen_t remoteLen{};
 
+	std::cout << "Here" << std::endl;
+
 	fd = accept(socket, (struct sockaddr*) &remote, &remoteLen);
 
 	if (fd > 0) {
 		std::cout << "A client connected with" << fd << "number connected" << std::endl;
-
-		irc->addClient(fd);
+		Client client(fd);
+		irc->addClient(client);
 		irc->registerHandler(fd, EPOLLIN, clientWrite);
 		irc->registerHandler(fd, EPOLLRDHUP | EPOLLHUP, clientDisconnect);
 	} else {
@@ -67,8 +80,9 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	int optval = 1;
-	setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+	// int optval = 1;
+	// setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+
 
 
 	if (bind(sock, (struct sockaddr *)&sa_bindy, sizeof(sa_bindy))) {
@@ -85,10 +99,12 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	irc->addClient(sock);
-	irc->registerHandler(sock, EPOLLIN | EPOLLOUT, [](int socket) { acceptClient(socket); });
-	while (true)
+	irc->addClient(Client(sock));
+	irc->registerHandler(sock, EPOLLIN | EPOLLOUT, acceptClient);
+	while (true) {
 		irc->poll();
+		std::cout << "New message" << std::endl;
+	}
 	close(sock);
 	delete irc;
 }
