@@ -1,4 +1,5 @@
 #include "Server.hpp"
+#include "RecvParser.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <sys/socket.h>
@@ -14,14 +15,16 @@ void clientWrite(int fd) {
 	int messageLen = 0;
 	string msg;
 	vector<char> buf(BUFSIZ);
+	RecvParser	parser;
 
 	messageLen = recv(fd, &buf[0], buf.size(), 0);
 	if (messageLen == -1)
 		throw runtime_error("Failure receiving message");
-	else
+	parser.feed(&buf[0], buf.size());
+	/*else
 		msg.append(buf.cbegin(), buf.cend() + messageLen);
 	msg.erase('\n');
-	cout << msg << endl;
+	cout << msg << endl;*/
 	send(fd, "Message received\n", 18, 0);
 }
 

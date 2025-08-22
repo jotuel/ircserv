@@ -56,6 +56,7 @@ void Server::_reloadHandler(Client &client) const {
 
 void Server::poll(int tout) {
 	int nbrEvents = epoll_wait(_fd, &_events[0], _max_events, tout);
+	(void)nbrEvents;
 
 	for (int idx = 0; idx < _max_events; idx++) {
 		uint32_t events = _events[idx].events;
