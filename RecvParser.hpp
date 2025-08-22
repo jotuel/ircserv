@@ -12,6 +12,9 @@
 
 #pragma once
 #include <string>
+#include <sstream>
+#include <optional>
+#include <vector>
 #include <iostream>
 
 enum cmd
@@ -29,6 +32,15 @@ enum cmd
 	ERROR
 };
 
+struct	Message
+{
+	std::optional<std::string>	prefix;
+	std::string					command;
+	std::vector<std::string>	params;
+};
+
+std::ostream	&operator<<(std::ostream &os, const Message &msg);
+
 /**	
  * @class	RecvParser
  * @brief	A class for parsing data read by recv() for use by the client
@@ -43,5 +55,7 @@ class	RecvParser
 
 		void	_normalizeNewLines(void);
 		void	_parseBuffer(void);
-		void	_handle(const std::string &msg);
+		Message	_parseMessage(const std::string &msg);
+		void	_handle(const Message &msg);
+
 };

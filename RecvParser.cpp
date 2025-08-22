@@ -12,6 +12,16 @@
 
 #include "RecvParser.hpp"
 
+std::ostream	&operator<<(std::ostream &os, const Message &msg)
+{
+	if (msg.prefix)
+		os << "Prefix: " << *(msg.prefix) << " ";
+	os << "Command: " << msg.command << ", Params: ";
+	for (auto param : msg.params)
+		os << param;
+	return (os);
+}
+
 /**
  *	Feed the recv() buffer into std::string buffer
  *	@param	read_buf	The buffer to read
@@ -62,42 +72,92 @@ void	RecvParser::_parseBuffer(void)
 	{
 		std::string line = _buffer.substr(0, pos);
 		_buffer.erase(0, pos + 2);
-		_handle(line);
+		try
+		{
+			Message command = _parseMessage(line);
+			_handle(command);
+		}
+		catch (std::exception &e)
+		{
+			std::cerr << "Parsing error: " << e.what();
+		}
 	}
+}
+
+Message	RecvParser::_parseMessage(const std::string &msg)
+{
+	if (msg.size() > 512)
+		throw (std::runtime_error("Line is over 512 bytes"));
+
+	Message ret;
+
+	std::string line = msg;
+	auto end = line.find_last_not_of('\r');
+	if (end != std::string::npos)
+		line = line.substr(0, end);
+
+	std::istringstream line_stream(line);
+	std::string	token;
+
+	if (line[0] == ':')
+	{
+		line_stream >> token;
+		ret.prefix = token.substr(1);
+	}
+
+	if (!(line_stream >> ret.command))
+		throw (std::runtime_error("Line is missing a command"));
+
+	while (line_stream >> token)
+	{
+		if (token[0] == ':')
+		{
+			std::string trailing_param = token.substr(1);
+			std::string rest;
+			std::getline(line_stream, rest);
+			if (!rest.empty())
+				trailing_param += " " + rest;
+			ret.params.push_back(trailing_param);
+			break ;
+		}
+		else
+			ret.params.push_back(token);
+	}
+	return (ret);
 }
 
 /**
  *	Handle the parsed line
  *	@param	msg	The line to handle
  */
-void	RecvParser::_handle(const std::string &msg)
+void	RecvParser::_handle(const Message &msg)
 {
-	auto hash = [](const std::string &msg)
+	auto hash = [](const std::string &cmd)
 	{
-		if (msg.compare(0, 4, "NICK") == 0)
+		if (cmd.compare(0, 4, "NICK") == 0)
 			return (NICK);
-		if (msg.compare(0, 4, "USER") == 0)
+		if (cmd.compare(0, 4, "USER") == 0)
 			return (USER);
-		if (msg.compare(0, 4, "JOIN") == 0)
+		if (cmd.compare(0, 4, "JOIN") == 0)
 			return (JOIN);
-		if (msg.compare(0, 4, "PART") == 0)
+		if (cmd.compare(0, 4, "PART") == 0)
 			return (PART);
-		if (msg.compare(0, 7, "PRIVMSG") == 0)
+		if (cmd.compare(0, 7, "PRIVMSG") == 0)
 			return (PRIVMSG);
-		if (msg.compare(0, 4, "KICK") == 0)
+		if (cmd.compare(0, 4, "KICK") == 0)
 			return (KICK);
-		if (msg.compare(0, 6, "INVITE") == 0)
+		if (cmd.compare(0, 6, "INVITE") == 0)
 			return (INVITE);
-		if (msg.compare(0, 5, "TOPIC") == 0)
+		if (cmd.compare(0, 5, "TOPIC") == 0)
 			return (TOPIC);
-		if (msg.compare(0, 4, "QUIT") == 0)
+		if (cmd.compare(0, 4, "QUIT") == 0)
 			return (QUIT);
-		if (msg.compare(0, 4, "MODE") == 0)
+		if (cmd.compare(0, 4, "MODE") == 0)
 			return (MODE);
 		return (ERROR);
 	};
 	std::cout << "Received: ";
-	switch (hash(msg))
+	switch (hash(msg.command))
 	{
 		case NICK:
 			std::cout << msg << std::endl;
