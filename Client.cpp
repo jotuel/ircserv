@@ -4,7 +4,7 @@
 #include <fcntl.h>
 
 Client::Client(int fd) : _fd(fd) {
-	if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK))
+	if (fcntl(fd, F_SETFL, O_NONBLOCK))
 		throw std::runtime_error("Client::Client: Fcntl failed");
 }
 

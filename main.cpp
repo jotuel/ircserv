@@ -7,25 +7,26 @@
 #include <netinet/in.h>
 #include <csignal>
 
+using namespace std;
 Server *irc;
 
 void clientWrite(int fd) {
 	int messageLen = 0;
-	std::string msg;
-	std::vector<char> buf(BUFSIZ);
+	string msg;
+	vector<char> buf(BUFSIZ);
 
 	messageLen = recv(fd, &buf[0], buf.size(), 0);
 	if (messageLen == -1)
-		throw std::runtime_error("Failure receiving message");
+		throw runtime_error("Failure receiving message");
 	else
 		msg.append(buf.cbegin(), buf.cend() + messageLen);
-
-	std::cout << msg << std::endl;
-	send(fd, "Message received", 17, 0);
+	msg.erase('\n');
+	cout << msg << endl;
+	send(fd, "Message received\n", 18, 0);
 }
 
 void clientDisconnect(int fd) {
-	std::cout << "Client with socket" << fd << " disconnected" << std::endl;
+	cout << "Client with socket" << fd << " disconnected" << endl;
 }
 
 void acceptClient(int socket) {
@@ -33,18 +34,16 @@ void acceptClient(int socket) {
 	struct sockaddr_in remote{};
 	socklen_t remoteLen{};
 
-	std::cout << "Here" << std::endl;
-
 	fd = accept(socket, (struct sockaddr*) &remote, &remoteLen);
 
 	if (fd > 0) {
-		std::cout << "A client connected with" << fd << "number connected" << std::endl;
+		cout << "A client connected with fd nbr " << fd << " connected" << endl;
 		Client client(fd);
 		irc->addClient(client);
 		irc->registerHandler(fd, EPOLLIN, clientWrite);
 		irc->registerHandler(fd, EPOLLRDHUP | EPOLLHUP, clientDisconnect);
 	} else {
-		throw std::runtime_error("Failed creating a new TCP connection to client");
+		throw runtime_error("Failed creating a new TCP connection to client");
 	}
 }
 
@@ -53,7 +52,7 @@ int main(int argc, char *argv[]) {
 	sa_bindy.sin_family = AF_INET;
 
 	if (argc != 2 && argc != 3) {
-		std::cerr << "Usage ./ircserv [port] <password>" << std::endl;
+		cerr << "Usage ./ircserv [port] <password>" << endl;
 		return 1;
 	} else if (argc == 3) {
 		irc = new Server(argv[2]);
@@ -64,46 +63,54 @@ int main(int argc, char *argv[]) {
 	int port;
 
 	try {
-		port = std::stoi(argv[1]);
+		port = stoi(argv[1]);
 	} catch (...) {
-		std::cerr << "Faulty port" << std::endl;
+		cerr << "Faulty port" << endl;
 		return 1;
 	}
 
 	sa_bindy.sin_port = htons(port);
-	sa_bindy.sin_addr.s_addr = inet_addr("127.0.0.1");
+	sa_bindy.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	auto sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
 		delete irc;
-		std::cerr << "Socket creation failed" << std::endl;
+		cerr << "Socket creation failed" << endl;
 		return 1;
 	}
 
-	// int optval = 1;
-	// setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
-
-
+	int optval = 1;
+	setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
 
 	if (bind(sock, (struct sockaddr *)&sa_bindy, sizeof(sa_bindy))) {
 		delete irc;
 		close(sock);
-		std::cerr << "Binding failed" << std::endl;
+		cerr << "Binding failed" << endl;
 		return 1;
 	}
 
-	if (listen(sock, 5)) {
+	if (listen(sock, 10)) {
 		delete irc;
 		close(sock);
-		std::cerr << "Listening on the port failed" << std::endl;
+		cerr << "Listening on the port failed" << endl;
 		return 1;
 	}
 
-	irc->addClient(Client(sock));
-	irc->registerHandler(sock, EPOLLIN | EPOLLOUT, acceptClient);
+ 	// struct epoll_event event;
+  //   vector<epoll_event> events;
+  //   events.reserve(sizeof(epoll_event) * 10);
+
+  //   event.events = EPOLLIN;
+  //   event.data.fd = sock;
+  //   epoll_ctl(irc->getServerFd(), EPOLL_CTL_ADD, sock, &event);
+    irc->addOwnSocket(sock);
+    irc->registerHandler(sock, EPOLLIN, [](int socket) { acceptClient(socket); });
 	while (true) {
-		irc->poll();
-		std::cout << "New message" << std::endl;
+		try {
+			irc->poll();
+		} catch (runtime_error &err) {
+			cerr << err.what() << endl;
+		}
 	}
 	close(sock);
 	delete irc;

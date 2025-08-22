@@ -26,6 +26,7 @@ class Server {
 		void addClient(const Client client);
 		void removeClient(const Client client);
 		void registerHandler(const int fd, uint32_t eventType, std::function<void(int)> handler);
+		void addOwnSocket(int sockfd);
 
 		void poll(int tout = -1);
 		const std::unordered_map<int, class Client>& getClients() const;

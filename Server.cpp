@@ -64,7 +64,7 @@ void Server::poll(int tout) {
 			if (_clients.count(fd) == 0)
 				return ;
 			if (_clients.at(fd).handler(eventType))
-			_clients.at(fd).getHandler(eventType)(fd);
+				_clients.at(fd).getHandler(eventType)(fd);
 		}
 
 	if (events & (EPOLLRDHUP & EPOLLHUP))
@@ -86,4 +86,8 @@ void Server::registerHandler(const int fd, uint32_t eventType, std::function<voi
 	}
 
 	_reloadHandler(cli);
+}
+
+void Server::addOwnSocket(int sockfd) {
+	_clients.try_emplace(sockfd, Client(sockfd));
 }
